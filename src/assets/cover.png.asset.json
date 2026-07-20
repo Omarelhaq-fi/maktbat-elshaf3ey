@@ -1,11 +1,6 @@
 {
   "version": 1,
-  "asset_id": "cd17b1c4-5c90-47e8-b995-0cfef52431b4",
-  "project_id": "f7bc821b-4ddb-48d9-890d-d16f1a57126d",
-  "url": "/__l5e/assets-v1/cd17b1c4-5c90-47e8-b995-0cfef52431b4/cover.png",
-  "r2_key": "a/v1/f7bc821b-4ddb-48d9-890d-d16f1a57126d/cd17b1c4-5c90-47e8-b995-0cfef52431b4/cover.png",
+  "url": "/brand/cover.png",
   "original_filename": "cover.png",
-  "size": 705021,
-  "content_type": "image/png",
-  "created_at": "2026-07-19T16:58:32Z"
+  "content_type": "image/png"
 }

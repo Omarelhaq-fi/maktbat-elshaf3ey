@@ -1,11 +1,6 @@
 {
   "version": 1,
-  "asset_id": "26ae096d-3e88-48fa-b0a5-3de97af0a526",
-  "project_id": "f7bc821b-4ddb-48d9-890d-d16f1a57126d",
-  "url": "/__l5e/assets-v1/26ae096d-3e88-48fa-b0a5-3de97af0a526/logo-transparent.png",
-  "r2_key": "a/v1/f7bc821b-4ddb-48d9-890d-d16f1a57126d/26ae096d-3e88-48fa-b0a5-3de97af0a526/logo-transparent.png",
+  "url": "/brand/logo-transparent.png",
   "original_filename": "logo-transparent.png",
-  "size": 120639,
-  "content_type": "image/png",
-  "created_at": "2026-07-19T16:58:28Z"
+  "content_type": "image/png"
 }
