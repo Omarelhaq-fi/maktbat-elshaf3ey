@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// Firestore Security Rules — مكتبة الشافعي
+// Admin is identified by email: admin@gmail.com
+// Deploy: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "admin@gmail.com";
+    }
+
+    // ---------- Products ----------
+    match /products/{productId} {
+      allow read: if true;
+      // Admin full write
+      allow create, delete: if isAdmin();
+      // Admin can update anything; anyone can update ONLY the stock field
+      // (needed for atomic increment/decrement on checkout & cancel).
+      allow update: if isAdmin()
+        || (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['stock'])
+        );
+    }
+
+    // ---------- Categories ----------
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- Orders ----------
+    match /orders/{orderId} {
+      // Anyone can create an order (guest checkout allowed)
+      allow create: if
+        request.resource.data.status == "pending"
+        && request.resource.data.paymentMethod == "cod"
+        && (
+          request.resource.data.userId == null
+          || (isSignedIn() && request.resource.data.userId == request.auth.uid)
+        );
+
+      // Read: owner or admin
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      // Update: admin can do anything.
+      // Owner can only cancel their own pending order.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == "pending"
+          && request.resource.data.status == "cancelled"
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status'])
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Support Tickets ----------
+    match /supportTickets/{ticketId} {
+      // Public read (guest tickets are accessed by direct link/localStorage token)
+      allow read: if true;
+
+      // Anyone can open a ticket
+      allow create: if
+        request.resource.data.status == "open"
+        && (
+          request.resource.data.userId == null
+          || (isSignedIn() && request.resource.data.userId == request.auth.uid)
+        );
+
+      // Update:
+      // - Admin: anything
+      // - Owner (signed-in): their ticket
+      // - Guest tickets (userId == null): allowed (counters, status, previews)
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid)
+        || (resource.data.userId == null);
+
+      allow delete: if isAdmin();
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read, create: if true;
+        allow update, delete: if isAdmin();
+      }
+    }
+  }
+}

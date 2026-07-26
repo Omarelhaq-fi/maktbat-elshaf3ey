@@ -16,6 +16,7 @@ import { SiteFooter } from "../components/site-footer";
 import { Toaster } from "../components/ui/sonner";
 import { AuthProvider } from "../lib/auth-context";
 import { CartProvider } from "../lib/cart-context";
+import { SupportWidget } from "../components/support-widget";
 
 function NotFoundComponent() {
   return (
@@ -144,7 +145,22 @@ function RootComponent() {
             </main>
             <SiteFooter />
           </div>
-          <Toaster position="top-center" richColors />
+          <SupportWidget />
+          <Toaster
+            position="bottom-center"
+            duration={2500}
+            toastOptions={{
+              classNames: {
+                toast:
+                  "!rounded-full !border-0 !bg-brand-dark !text-white !shadow-xl !px-5 !py-3 !font-bold !text-sm !min-h-0 !w-auto",
+                title: "!text-white !font-bold",
+                description: "!text-white/80",
+                success: "!bg-brand-dark !text-white",
+                error: "!bg-red-600 !text-white",
+                icon: "!text-brand-gold",
+              },
+            }}
+          />
         </CartProvider>
       </AuthProvider>
     </QueryClientProvider>

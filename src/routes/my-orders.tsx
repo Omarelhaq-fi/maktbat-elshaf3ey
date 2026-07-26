@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { getMyOrders, updateOrderStatus, type Order } from "@/lib/products";
+import { getMyOrders, updateOrderStatus, adjustStock, type Order } from "@/lib/products";
 import { notifyOrderCancelled } from "@/lib/notify.functions";
 
 
@@ -36,6 +36,7 @@ function MyOrdersPage() {
     setCancellingId(order.id);
     try {
       await updateOrderStatus(order.id, "cancelled");
+      await adjustStock(order.items.map((i) => ({ id: i.id, qty: i.qty })), 1).catch(() => {});
       setOrders((prev) => prev?.map((o) => (o.id === order.id ? { ...o, status: "cancelled" } : o)) ?? null);
       notifyOrderCancelled({
         data: {

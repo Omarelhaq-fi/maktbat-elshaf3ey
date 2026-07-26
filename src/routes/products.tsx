@@ -25,7 +25,7 @@ function ProductsPage() {
   const [cat, setCat] = useState<string>("الكل");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
-  const { add } = useCart();
+  const { add, items: cartItems } = useCart();
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -146,21 +146,31 @@ function ProductsPage() {
                     <div className="text-lg font-black text-brand-dark">
                       {p.price} <span className="text-xs font-bold">ج.م</span>
                     </div>
-                    {p.stock <= 0 && (
+                    {p.stock <= 0 ? (
                       <span className="text-xs font-bold text-red-600">نافذ</span>
+                    ) : p.stock <= 5 ? (
+                      <span className="text-xs font-bold text-brand-orange">متبقي {p.stock} فقط</span>
+                    ) : (
+                      <span className="text-xs font-bold text-green-700">متوفر ({p.stock})</span>
                     )}
                   </div>
-                  <button
-                    disabled={p.stock <= 0}
-                    onClick={() => {
-                      add({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl });
-                      toast.success("اتضاف للسلة");
-                    }}
-                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-brand-dark px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    ضيف للسلة
-                  </button>
+                  {(() => {
+                    const inCart = cartItems.find((c) => c.id === p.id)?.qty ?? 0;
+                    const reached = inCart >= p.stock;
+                    return (
+                      <button
+                        disabled={p.stock <= 0 || reached}
+                        onClick={() => {
+                          add({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl });
+                          toast.success("اتضاف للسلة");
+                        }}
+                        className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-brand-dark px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        {p.stock <= 0 ? "نافذ" : reached ? "وصلت للحد الأقصى" : "ضيف للسلة"}
+                      </button>
+                    );
+                  })()}
                 </div>
               </article>
             ))}

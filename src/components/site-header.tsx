@@ -18,6 +18,7 @@ export function SiteHeader() {
   const { count } = useCart();
   const { user, signOut } = useAuth();
 
+
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/85 backdrop-blur-lg">
       <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
@@ -34,11 +35,14 @@ export function SiteHeader() {
             <Link
               key={item.to}
               to={item.to}
-              className="px-4 py-2 rounded-full text-sm font-semibold text-foreground/80 hover:text-brand-dark hover:bg-brand-gold/20 transition-colors"
+              className="relative px-4 py-2 rounded-full text-sm font-semibold text-foreground/80 hover:text-brand-dark hover:bg-brand-gold/20 transition-colors"
               activeProps={{ className: "text-brand-dark bg-brand-gold/30" }}
               activeOptions={{ exact: item.to === "/" }}
             >
-              {item.label}
+              <span className="inline-flex items-center gap-1.5">
+                {item.label}
+              </span>
+
             </Link>
           ))}
         </nav>

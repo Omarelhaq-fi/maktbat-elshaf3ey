@@ -8,6 +8,7 @@ import {
   deleteProduct,
   subscribeAllOrders,
   updateOrderStatus,
+  adjustStock,
   subscribeCategories,
   createCategory,
   deleteCategory,
@@ -15,8 +16,9 @@ import {
   type Order,
   type Category,
 } from "@/lib/products";
+import { subscribeAllTickets, subscribeMessages, sendMessage, markRead, setTicketStatus, type Ticket, type TicketMessage } from "@/lib/support";
 import { toast } from "sonner";
-import { Trash2, Pencil, Plus, LogOut, Package, ShoppingBag, Tags } from "lucide-react";
+import { Trash2, Pencil, Plus, LogOut, Package, ShoppingBag, Tags, LifeBuoy, MessageCircle } from "lucide-react";
 
 export const Route = createFileRoute("/mgmt-9k2x-shafi")({
   component: AdminPage,
@@ -31,7 +33,17 @@ export const Route = createFileRoute("/mgmt-9k2x-shafi")({
 function AdminPage() {
   const { user, loading, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"products" | "orders" | "categories">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "categories" | "support">("products");
+  const [supportUnread, setSupportUnread] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let unsub: (() => void) | undefined;
+    subscribeAllTickets((items) => {
+      setSupportUnread(items.reduce((s, t) => s + (t.adminUnread ?? 0), 0));
+    }).then((u) => (unsub = u));
+    return () => unsub?.();
+  }, [isAdmin]);
 
   if (loading) {
     return <div className="py-20 text-center text-muted-foreground">جاري التحقق...</div>;
@@ -101,9 +113,31 @@ function AdminPage() {
           <ShoppingBag className="h-4 w-4" />
           الطلبات
         </button>
+        <button
+          onClick={() => setTab("support")}
+          className={`relative inline-flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors ${
+            tab === "support" ? "border-brand-orange text-brand-dark" : "border-transparent text-muted-foreground"
+          }`}
+        >
+          <LifeBuoy className="h-4 w-4" />
+          الدعم
+          {supportUnread > 0 && (
+            <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-brand-orange px-1.5 text-[11px] font-black text-white">
+              {supportUnread}
+            </span>
+          )}
+        </button>
       </div>
 
-      {tab === "products" ? <ProductsAdmin /> : tab === "categories" ? <CategoriesAdmin /> : <OrdersAdmin />}
+      {tab === "products" ? (
+        <ProductsAdmin />
+      ) : tab === "categories" ? (
+        <CategoriesAdmin />
+      ) : tab === "orders" ? (
+        <OrdersAdmin />
+      ) : (
+        <SupportAdmin />
+      )}
     </section>
   );
 }
@@ -333,9 +367,17 @@ function OrdersAdmin() {
     return () => unsub?.();
   }, []);
 
-  async function setStatus(id: string, status: Order["status"]) {
+  async function setStatus(order: Order, status: Order["status"]) {
+    if (order.status === status) return;
     try {
-      await updateOrderStatus(id, status);
+      await updateOrderStatus(order.id, status);
+      const wasCancelled = order.status === "cancelled";
+      const nowCancelled = status === "cancelled";
+      if (!wasCancelled && nowCancelled) {
+        await adjustStock(order.items.map((i) => ({ id: i.id, qty: i.qty })), 1).catch(() => {});
+      } else if (wasCancelled && !nowCancelled) {
+        await adjustStock(order.items.map((i) => ({ id: i.id, qty: i.qty })), -1).catch(() => {});
+      }
       toast.success("تم التحديث");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "خطأ");
@@ -363,7 +405,7 @@ function OrdersAdmin() {
                 <div className="text-2xl font-black text-brand-dark">{o.total} ج.م</div>
                 <select
                   value={o.status}
-                  onChange={(e) => setStatus(o.id, e.target.value as Order["status"])}
+                  onChange={(e) => setStatus(o, e.target.value as Order["status"])}
                   className="mt-2 rounded-xl border border-input bg-background px-3 py-1.5 text-sm font-bold"
                 >
                   <option value="pending">قيد المراجعة</option>
@@ -479,3 +521,204 @@ function CategoriesAdmin() {
     </div>
   );
 }
+
+function SupportAdmin() {
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    subscribeAllTickets(setTickets).then((u) => (unsub = u));
+    return () => unsub?.();
+  }, []);
+
+  const shown = tickets.filter((t) => filter === "all" || t.status === filter);
+  const selected = tickets.find((t) => t.id === selectedId) ?? null;
+
+  if (selected) {
+    return <AdminChat ticket={selected} onBack={() => setSelectedId(null)} />;
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex gap-2">
+        {(["all", "open", "closed"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-full px-4 py-1.5 text-sm font-bold ${
+              filter === f ? "bg-brand-dark text-white" : "bg-brand-gold/20 text-brand-dark"
+            }`}
+          >
+            {f === "all" ? "الكل" : f === "open" ? "مفتوحة" : "مقفولة"}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="rounded-2xl border border-border/60 bg-card p-12 text-center text-muted-foreground">
+          مفيش تذاكر
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {shown.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSelectedId(t.id)}
+              className="block w-full text-right rounded-2xl border border-border/60 bg-card p-5 hover:border-brand-orange transition-colors"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-brand-orange shrink-0" />
+                    <h3 className="font-extrabold text-brand-dark line-clamp-1">{t.subject}</h3>
+                    {t.adminUnread > 0 && (
+                      <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-brand-orange px-1.5 text-[11px] font-black text-white">
+                        {t.adminUnread}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t.customerName}
+                    {t.phone && <> · <span dir="ltr">{t.phone}</span></>}
+                    {t.userId ? " · حساب مسجل" : " · ضيف"}
+                  </p>
+                  {t.lastMessagePreview && (
+                    <p className="mt-1 text-sm text-muted-foreground line-clamp-1">
+                      {t.lastMessagePreview}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    t.status === "open"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-200 text-gray-700"
+                  }`}
+                >
+                  {t.status === "open" ? "مفتوحة" : "مقفولة"}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminChat({ ticket, onBack }: { ticket: Ticket; onBack: () => void }) {
+  const [messages, setMessages] = useState<TicketMessage[]>([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    subscribeMessages(ticket.id, setMessages).then((u) => (unsub = u));
+    markRead(ticket.id, "admin").catch(() => {});
+    return () => unsub?.();
+  }, [ticket.id]);
+
+  useEffect(() => {
+    if (ticket.adminUnread > 0) markRead(ticket.id, "admin").catch(() => {});
+  }, [ticket.id, ticket.adminUnread]);
+
+  const send = async () => {
+    const clean = text.trim();
+    if (!clean || sending) return;
+    setSending(true);
+    try {
+      await sendMessage(ticket.id, "admin", clean, "الدعم");
+      setText("");
+    } catch {
+      toast.error("فشل الإرسال");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const toggleStatus = async () => {
+    try {
+      await setTicketStatus(ticket.id, ticket.status === "open" ? "closed" : "open");
+      toast.success(ticket.status === "open" ? "تم قفل التذكرة" : "تم فتح التذكرة");
+    } catch {
+      toast.error("فشل التحديث");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 p-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={onBack} className="rounded-lg bg-brand-gold/20 px-3 py-1.5 text-sm font-bold text-brand-dark hover:bg-brand-gold/30">
+            رجوع
+          </button>
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-brand-dark line-clamp-1">{ticket.subject}</h3>
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {ticket.customerName}
+              {ticket.phone && <> · <span dir="ltr">{ticket.phone}</span></>}
+              {ticket.userId ? " · حساب مسجل" : " · ضيف"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={toggleStatus}
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            ticket.status === "open" ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          }`}
+        >
+          {ticket.status === "open" ? "قفل التذكرة" : "إعادة فتح"}
+        </button>
+      </div>
+
+      <div className="max-h-[420px] min-h-[300px] overflow-y-auto space-y-3 p-4 bg-muted/20">
+        {messages.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-8">لا رسائل بعد</p>
+        ) : (
+          messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex ${m.sender === "admin" ? "justify-start" : "justify-end"}`}
+            >
+              <div
+                className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ${
+                  m.sender === "admin"
+                    ? "bg-brand-orange text-white"
+                    : "bg-white border border-border/60 text-brand-dark"
+                }`}
+              >
+                {m.text}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="border-t border-border/60 p-3 flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder="اكتب ردك..."
+          className="flex-1 rounded-xl border border-border/60 bg-background px-4 py-2 text-sm outline-none focus:border-brand-orange"
+        />
+        <button
+          onClick={send}
+          disabled={sending || !text.trim()}
+          className="rounded-xl bg-brand-dark px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+        >
+          إرسال
+        </button>
+      </div>
+    </div>
+  );
+}
+

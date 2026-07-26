@@ -12,8 +12,20 @@ import {
   getDocs,
   getDoc,
   where,
+  writeBatch,
+  increment,
 } from "firebase/firestore";
 import { getFirebase } from "./firebase";
+
+export async function adjustStock(items: { id: string; qty: number }[], delta: -1 | 1) {
+  if (!items.length) return;
+  const { db } = await getFirebase();
+  const batch = writeBatch(db);
+  for (const it of items) {
+    batch.update(doc(db, "products", it.id), { stock: increment(delta * it.qty) });
+  }
+  await batch.commit();
+}
 
 
 export interface Category {

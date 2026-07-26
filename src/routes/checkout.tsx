@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
-import { prepareOrderId, createOrderWithId } from "@/lib/products";
+import { prepareOrderId, createOrderWithId, adjustStock } from "@/lib/products";
 import { notifyNewOrder } from "@/lib/notify.functions";
 
 import { toast } from "sonner";
@@ -92,6 +92,7 @@ function CheckoutPage() {
         paymentMethod: "cod",
         telegramMessageId: notifyRes?.messageId ?? undefined,
       });
+      await adjustStock(items.map((i) => ({ id: i.id, qty: i.qty })), -1).catch(() => {});
 
       if (storageKey) {
         try {
